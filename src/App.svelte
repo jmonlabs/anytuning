@@ -73,11 +73,13 @@
         const notes = finder.getPlayedNotes(voicing.frets);
         const activeFrets = voicing.frets.filter(f => f !== 'x' && f !== 0);
         const uniqueFrets = new Set(activeFrets);
+        const difficulty = finder.getDifficultyScore(voicing.frets);
         return {
           frets: voicing.frets,
           fitness: voicing.fitness,
           notes: notes,
-          numFingers: uniqueFrets.size
+          numFingers: uniqueFrets.size,
+          difficulty: difficulty
         };
       });
 
@@ -95,6 +97,20 @@
 
   function formatNotes(notes) {
     return notes.join('-');
+  }
+
+  function getDifficultyLabel(difficulty) {
+    if (difficulty < 2) return 'Easy';
+    if (difficulty < 4) return 'Medium';
+    if (difficulty < 7) return 'Hard';
+    return 'Very Hard';
+  }
+
+  function getDifficultyColor(difficulty) {
+    if (difficulty < 2) return '#4ade80';
+    if (difficulty < 4) return '#fbbf24';
+    if (difficulty < 7) return '#fb923c';
+    return '#ef4444';
   }
 </script>
 
@@ -193,8 +209,12 @@
                 <div class="notes">{formatNotes(result.notes)}</div>
               </div>
               <div class="chord-info">
-                <span>Fitness: {result.fitness.toFixed(1)}</span>
                 <span>{result.numFingers} finger{result.numFingers !== 1 ? 's' : ''}</span>
+                <span
+                  class="difficulty"
+                  style="color: {getDifficultyColor(result.difficulty)}">
+                  {getDifficultyLabel(result.difficulty)}
+                </span>
               </div>
             </div>
           {/each}
@@ -359,6 +379,10 @@
     color: #888;
     padding-top: 0.5em;
     border-top: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .difficulty {
+    font-weight: 600;
   }
 
   @media (max-width: 768px) {

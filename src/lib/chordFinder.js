@@ -131,48 +131,152 @@ export class GuitarChordFinder {
   }
 
   isPhysicallyPlayable(frets) {
-    const activeFrets = [];
+    const active = [];
     for (let i = 0; i < frets.length; i++) {
       if (frets[i] !== 'x' && frets[i] !== 0 && i < this.numStrings) {
-        activeFrets.push({ stringIdx: i, fret: frets[i] });
+        active.push({ string: i, fret: parseInt(frets[i]) });
       }
     }
 
-    if (activeFrets.length === 0) {
+    if (active.length === 0) {
       return { playable: true, reason: 'OK' };
     }
 
+    const uniqueFrets = new Set(active.map(a => a.fret));
+    if (uniqueFrets.size > 4) {
+      return { playable: false, reason: `Too many fingers: ${uniqueFrets.size}` };
+    }
+
+    const minFret = Math.min(...active.map(a => a.fret));
+    const maxFret = Math.max(...active.map(a => a.fret));
+
     const fretToStrings = {};
-    for (const { stringIdx, fret } of activeFrets) {
+    active.forEach(({ string, fret }) => {
       if (!fretToStrings[fret]) {
         fretToStrings[fret] = [];
       }
-      fretToStrings[fret].push(stringIdx);
-    }
+      fretToStrings[fret].push(string);
+    });
+
+    const span = maxFret - minFret;
 
     for (const [fret, strings] of Object.entries(fretToStrings)) {
-      if (strings.length > 1) {
+      const fretNum = parseInt(fret);
+      const isBarreFret = fretNum === minFret && span > 0;
+
+      if (strings.length >= 3 && !isBarreFret) {
         const stringsSorted = [...strings].sort((a, b) => a - b);
         for (let i = 0; i < stringsSorted.length - 1; i++) {
           if (stringsSorted[i + 1] - stringsSorted[i] > 1) {
-            return { playable: false, reason: `Impossible barre on fret ${fret}` };
+            return { playable: false, reason: `Impossible barre on fret ${fret} with gap` };
           }
         }
       }
     }
 
-    const uniqueFrets = new Set(activeFrets.map(af => af.fret));
-    if (uniqueFrets.size > 4) {
-      return { playable: false, reason: `Too many fingers: ${uniqueFrets.size}` };
+    if (span > 4) {
+      return { playable: false, reason: `Absolute span too large: ${span}` };
     }
 
-    const fretValues = activeFrets.map(af => af.fret);
-    const span = Math.max(...fretValues) - Math.min(...fretValues);
-    if (span > 4) {
-      return { playable: false, reason: `Span too large: ${span}` };
+    const minFretPositions = active.filter(a => a.fret === minFret);
+    const maxFretPositions = active.filter(a => a.fret === maxFret);
+    const minString = Math.min(...minFretPositions.map(a => a.string));
+    const maxString = Math.max(...maxFretPositions.map(a => a.string));
+    const stringDiff = Math.abs(maxString - minString);
+
+    if (stringDiff >= 3 && span > 2) {
+      return { playable: false, reason: `Span ${span} too large for strings ${stringDiff} apart` };
+    }
+    if (stringDiff >= 2 && span > 3) {
+      return { playable: false, reason: `Span ${span} too large for strings ${stringDiff} apart` };
+    }
+
+    const barredFrets = Object.entries(fretToStrings)
+      .filter(([_, strings]) => strings.length >= 3)
+      .map(([fret, _]) => parseInt(fret));
+
+    if (barredFrets.length > 0) {
+      const barreFret = Math.min(...barredFrets);
+      const otherFrets = active.filter(a => a.fret !== barreFret).map(a => a.fret);
+      if (otherFrets.length > 0 && Math.max(...otherFrets) - barreFret > 3) {
+        return { playable: false, reason: `Too much stretch with barre at fret ${barreFret}` };
+      }
+    }
+
+    for (let i = 0; i < active.length; i++) {
+      for (let j = i + 1; j < active.length; j++) {
+        const stringDist = Math.abs(active[i].string - active[j].string);
+        const fretDist = Math.abs(active[i].fret - active[j].fret);
+        const totalDist = Math.sqrt(stringDist * stringDist + fretDist * fretDist);
+        if (totalDist > 5.5) {
+          return { playable: false, reason: `Impossible diagonal stretch: ${totalDist.toFixed(1)}` };
+        }
+      }
     }
 
     return { playable: true, reason: 'OK' };
+  }
+
+  getDifficultyScore(frets) {
+    const active = [];
+    for (let i = 0; i < frets.length; i++) {
+      if (frets[i] !== 'x' && frets[i] !== 0 && i < this.numStrings) {
+        active.push({ string: i, fret: parseInt(frets[i]) });
+      }
+    }
+
+    if (active.length === 0) {
+      return 0;
+    }
+
+    let difficulty = 0;
+
+    const minFret = Math.min(...active.map(a => a.fret));
+    const maxFret = Math.max(...active.map(a => a.fret));
+    const span = maxFret - minFret;
+
+    difficulty += span * 1.5;
+
+    const uniqueFrets = new Set(active.map(a => a.fret));
+    difficulty += uniqueFrets.size * 0.5;
+
+    const fretToStrings = {};
+    active.forEach(({ string, fret }) => {
+      if (!fretToStrings[fret]) {
+        fretToStrings[fret] = [];
+      }
+      fretToStrings[fret].push(string);
+    });
+
+    const hasBarre = Object.values(fretToStrings).some(strings => strings.length >= 3);
+    if (hasBarre) {
+      difficulty += 2;
+    }
+
+    const avgFret = active.reduce((sum, a) => sum + a.fret, 0) / active.length;
+    if (avgFret < 3) {
+      difficulty += 1;
+    } else if (avgFret > 7) {
+      difficulty -= 0.5;
+    }
+
+    for (let i = 0; i < active.length; i++) {
+      for (let j = i + 1; j < active.length; j++) {
+        const stringDist = Math.abs(active[i].string - active[j].string);
+        const fretDist = Math.abs(active[i].fret - active[j].fret);
+        const totalDist = Math.sqrt(stringDist * stringDist + fretDist * fretDist);
+        if (totalDist > 4) {
+          difficulty += (totalDist - 4) * 0.5;
+        }
+      }
+    }
+
+    const numMuted = frets.filter(f => f === 'x').length;
+    if (numMuted >= 3) {
+      difficulty += 0.5;
+    }
+
+    return Math.min(10, Math.max(0, difficulty));
   }
 
   calculateFitness(voicing, root, chordType = 'major') {
@@ -254,6 +358,9 @@ export class GuitarChordFinder {
     const uniqueFrets = new Set(activeFrets);
     const numFingers = uniqueFrets.size;
     fitness += (4 - numFingers) * 5;
+
+    const difficulty = this.getDifficultyScore(voicing.frets);
+    fitness -= difficulty * 3;
 
     return fitness;
   }
