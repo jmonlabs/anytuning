@@ -20,6 +20,55 @@ export const TUNINGS = {
   nst_minus_2: ['A', 'E', 'B', 'Gb', 'Db', 'E'],
 };
 
+export const DEFAULT_CONSTRAINTS = {
+  maxFingers: 4,
+  maxAbsoluteSpan: 4,
+  maxDiagonalStretch: 5.5,
+  maxBarreStretch: 3,
+  adaptiveSpanStrict: true,
+  spanFor2StringGap: 3,
+  spanFor3PlusStringGap: 2
+};
+
+export const CONSTRAINT_PRESETS = {
+  small_hands: {
+    maxFingers: 4,
+    maxAbsoluteSpan: 3,
+    maxDiagonalStretch: 4.5,
+    maxBarreStretch: 2,
+    adaptiveSpanStrict: true,
+    spanFor2StringGap: 2,
+    spanFor3PlusStringGap: 1
+  },
+  normal: {
+    maxFingers: 4,
+    maxAbsoluteSpan: 4,
+    maxDiagonalStretch: 5.5,
+    maxBarreStretch: 3,
+    adaptiveSpanStrict: true,
+    spanFor2StringGap: 3,
+    spanFor3PlusStringGap: 2
+  },
+  large_hands: {
+    maxFingers: 4,
+    maxAbsoluteSpan: 5,
+    maxDiagonalStretch: 6.5,
+    maxBarreStretch: 4,
+    adaptiveSpanStrict: false,
+    spanFor2StringGap: 4,
+    spanFor3PlusStringGap: 3
+  },
+  advanced: {
+    maxFingers: 4,
+    maxAbsoluteSpan: 5,
+    maxDiagonalStretch: 6.0,
+    maxBarreStretch: 4,
+    adaptiveSpanStrict: false,
+    spanFor2StringGap: 4,
+    spanFor3PlusStringGap: 2
+  }
+};
+
 export class ChordVoicing {
   constructor(frets) {
     this.frets = [...frets];
@@ -130,7 +179,7 @@ export class GuitarChordFinder {
     return notes;
   }
 
-  isPhysicallyPlayable(frets) {
+  isPhysicallyPlayable(frets, constraints = DEFAULT_CONSTRAINTS) {
     const active = [];
     for (let i = 0; i < frets.length; i++) {
       if (frets[i] !== 'x' && frets[i] !== 0 && i < this.numStrings) {
@@ -143,7 +192,7 @@ export class GuitarChordFinder {
     }
 
     const uniqueFrets = new Set(active.map(a => a.fret));
-    if (uniqueFrets.size > 4) {
+    if (uniqueFrets.size > constraints.maxFingers) {
       return { playable: false, reason: `Too many fingers: ${uniqueFrets.size}` };
     }
 
@@ -174,7 +223,7 @@ export class GuitarChordFinder {
       }
     }
 
-    if (span > 4) {
+    if (span > constraints.maxAbsoluteSpan) {
       return { playable: false, reason: `Absolute span too large: ${span}` };
     }
 
@@ -184,11 +233,13 @@ export class GuitarChordFinder {
     const maxString = Math.max(...maxFretPositions.map(a => a.string));
     const stringDiff = Math.abs(maxString - minString);
 
-    if (stringDiff >= 3 && span > 2) {
-      return { playable: false, reason: `Span ${span} too large for strings ${stringDiff} apart` };
-    }
-    if (stringDiff >= 2 && span > 3) {
-      return { playable: false, reason: `Span ${span} too large for strings ${stringDiff} apart` };
+    if (constraints.adaptiveSpanStrict) {
+      if (stringDiff >= 3 && span > constraints.spanFor3PlusStringGap) {
+        return { playable: false, reason: `Span ${span} too large for strings ${stringDiff} apart` };
+      }
+      if (stringDiff >= 2 && span > constraints.spanFor2StringGap) {
+        return { playable: false, reason: `Span ${span} too large for strings ${stringDiff} apart` };
+      }
     }
 
     const barredFrets = Object.entries(fretToStrings)
@@ -198,7 +249,7 @@ export class GuitarChordFinder {
     if (barredFrets.length > 0) {
       const barreFret = Math.min(...barredFrets);
       const otherFrets = active.filter(a => a.fret !== barreFret).map(a => a.fret);
-      if (otherFrets.length > 0 && Math.max(...otherFrets) - barreFret > 3) {
+      if (otherFrets.length > 0 && Math.max(...otherFrets) - barreFret > constraints.maxBarreStretch) {
         return { playable: false, reason: `Too much stretch with barre at fret ${barreFret}` };
       }
     }
@@ -208,7 +259,7 @@ export class GuitarChordFinder {
         const stringDist = Math.abs(active[i].string - active[j].string);
         const fretDist = Math.abs(active[i].fret - active[j].fret);
         const totalDist = Math.sqrt(stringDist * stringDist + fretDist * fretDist);
-        if (totalDist > 5.5) {
+        if (totalDist > constraints.maxDiagonalStretch) {
           return { playable: false, reason: `Impossible diagonal stretch: ${totalDist.toFixed(1)}` };
         }
       }
@@ -279,10 +330,10 @@ export class GuitarChordFinder {
     return Math.min(10, Math.max(0, difficulty));
   }
 
-  calculateFitness(voicing, root, chordType = 'major') {
+  calculateFitness(voicing, root, chordType = 'major', constraints = DEFAULT_CONSTRAINTS) {
     let fitness = 0.0;
 
-    const { playable, reason } = this.isPhysicallyPlayable(voicing.frets);
+    const { playable, reason } = this.isPhysicallyPlayable(voicing.frets, constraints);
     if (!playable) {
       return -1000.0;
     }
@@ -396,7 +447,7 @@ export class GuitarChordFinder {
     }
   }
 
-  findChord(chordName, root, chordType = 'major', onProgress = null, maxFret = 12) {
+  findChord(chordName, root, chordType = 'major', onProgress = null, maxFret = 12, constraints = DEFAULT_CONSTRAINTS) {
     let population = [];
     for (let i = 0; i < POPULATION_SIZE; i++) {
       population.push(this.createRandomVoicing(maxFret));
@@ -407,7 +458,7 @@ export class GuitarChordFinder {
 
     for (let generation = 0; generation < GENERATIONS; generation++) {
       for (const voicing of population) {
-        voicing.fitness = this.calculateFitness(voicing, root, chordType);
+        voicing.fitness = this.calculateFitness(voicing, root, chordType, constraints);
       }
 
       population.sort((a, b) => b.fitness - a.fitness);
@@ -481,7 +532,7 @@ export class GuitarChordFinder {
     }
 
     for (const voicing of population) {
-      voicing.fitness = this.calculateFitness(voicing, root, chordType);
+      voicing.fitness = this.calculateFitness(voicing, root, chordType, constraints);
     }
 
     population.sort((a, b) => b.fitness - a.fitness);

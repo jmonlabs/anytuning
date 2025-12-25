@@ -1,5 +1,5 @@
 <script>
-  import { GuitarChordFinder, TUNINGS, CHROMATIC } from './lib/chordFinder.js';
+  import { GuitarChordFinder, TUNINGS, CHROMATIC, CONSTRAINT_PRESETS } from './lib/chordFinder.js';
 
   let selectedTuning = 'standard';
   let customTuning = '';
@@ -10,6 +10,10 @@
   let isProcessing = false;
   let progressInfo = '';
   let maxFret = 12;
+
+  let constraintPreset = 'normal';
+  let showAdvancedConstraints = false;
+  let constraints = { ...CONSTRAINT_PRESETS.normal };
 
   const chordTypes = [
     { value: 'major', label: 'Major' },
@@ -45,6 +49,10 @@
     return selectedRoot + typeMap[selectedChordType];
   }
 
+  function updateConstraintsPreset() {
+    constraints = { ...CONSTRAINT_PRESETS[constraintPreset] };
+  }
+
   async function findChords() {
     isProcessing = true;
     progressInfo = 'Starting genetic algorithm...';
@@ -66,7 +74,8 @@
             progressInfo = `Generation ${progress.generation}: Best fitness = ${progress.bestFitness.toFixed(2)}`;
           }
         },
-        maxFret
+        maxFret,
+        constraints
       );
 
       results = solutions.map(voicing => {
@@ -185,6 +194,105 @@
         />
       </div>
 
+      <div class="form-group">
+        <label for="constraints">Playability Constraints</label>
+        <select id="constraints" bind:value={constraintPreset} on:change={updateConstraintsPreset}>
+          <option value="small_hands">Small Hands</option>
+          <option value="normal">Normal (Default)</option>
+          <option value="large_hands">Large Hands</option>
+          <option value="advanced">Advanced Player</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>
+          <input type="checkbox" bind:checked={showAdvancedConstraints} />
+          Show Advanced Settings
+        </label>
+      </div>
+
+      {#if showAdvancedConstraints}
+        <div class="advanced-constraints">
+          <h3>Advanced Constraint Settings</h3>
+
+          <div class="form-group">
+            <label for="maxFingers">Max Fingers: {constraints.maxFingers}</label>
+            <input
+              id="maxFingers"
+              type="range"
+              min="3"
+              max="4"
+              bind:value={constraints.maxFingers}
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="maxAbsoluteSpan">Max Absolute Span: {constraints.maxAbsoluteSpan} frets</label>
+            <input
+              id="maxAbsoluteSpan"
+              type="range"
+              min="3"
+              max="6"
+              bind:value={constraints.maxAbsoluteSpan}
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="maxDiagonalStretch">Max Diagonal Stretch: {constraints.maxDiagonalStretch.toFixed(1)}</label>
+            <input
+              id="maxDiagonalStretch"
+              type="range"
+              min="4"
+              max="7"
+              step="0.5"
+              bind:value={constraints.maxDiagonalStretch}
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="maxBarreStretch">Max Barre Stretch: {constraints.maxBarreStretch} frets</label>
+            <input
+              id="maxBarreStretch"
+              type="range"
+              min="2"
+              max="5"
+              bind:value={constraints.maxBarreStretch}
+            />
+          </div>
+
+          <div class="form-group">
+            <label>
+              <input type="checkbox" bind:checked={constraints.adaptiveSpanStrict} />
+              Strict Adaptive Span (limits based on string distance)
+            </label>
+          </div>
+
+          {#if constraints.adaptiveSpanStrict}
+            <div class="form-group">
+              <label for="spanFor2StringGap">Max Span (2-string gap): {constraints.spanFor2StringGap} frets</label>
+              <input
+                id="spanFor2StringGap"
+                type="range"
+                min="2"
+                max="5"
+                bind:value={constraints.spanFor2StringGap}
+              />
+            </div>
+
+            <div class="form-group">
+              <label for="spanFor3PlusStringGap">Max Span (3+ string gap): {constraints.spanFor3PlusStringGap} frets</label>
+              <input
+                id="spanFor3PlusStringGap"
+                type="range"
+                min="1"
+                max="4"
+                bind:value={constraints.spanFor3PlusStringGap}
+              />
+            </div>
+          {/if}
+        </div>
+      {/if}
+
       <button on:click={findChords} disabled={isProcessing}>
         {isProcessing ? 'Processing...' : 'Find Chords'}
       </button>
@@ -289,6 +397,29 @@
     margin-top: 0.25em;
     color: #888;
     font-size: 0.875em;
+  }
+
+  .advanced-constraints {
+    background: rgba(255, 255, 255, 0.03);
+    padding: 1em;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    margin-bottom: 1em;
+  }
+
+  .advanced-constraints h3 {
+    margin-top: 0;
+    margin-bottom: 1em;
+    font-size: 1em;
+    color: #ff3e00;
+  }
+
+  .advanced-constraints .form-group {
+    margin-bottom: 1em;
+  }
+
+  .advanced-constraints label {
+    font-size: 0.9em;
   }
 
   button {

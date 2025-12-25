@@ -12,9 +12,12 @@ AnyTuning is a web application built with Svelte that uses genetic algorithms to
 - Preset tunings included (Standard, Drop D, DADGAD, Open G, Open D, NST variants)
 - Multiple chord types: Major, Minor, 7th chords, Suspended, Diminished, Augmented
 - Genetic algorithm optimization for playable chord positions
+- Configurable playability constraints based on hand size and skill level
+- Advanced biomechanical validation (finger stretch, span limits, barre detection)
+- Difficulty scoring for each chord voicing
 - Adjustable fret range
 - Real-time progress feedback
-- Multiple voicing suggestions ranked by fitness score
+- Multiple voicing suggestions ranked by playability
 
 ## How It Works
 
@@ -67,13 +70,19 @@ npm run preview
 2. Choose the root note for your chord
 3. Select the chord type (Major, Minor, 7th, etc.)
 4. Adjust the maximum fret if needed
-5. Click "Find Chords" to generate voicings
+5. Select playability constraints based on your hand size:
+   - Small Hands: Stricter constraints, smaller spans
+   - Normal (Default): Standard biomechanical limits
+   - Large Hands: More relaxed constraints, larger spans allowed
+   - Advanced Player: For experienced players with high flexibility
+6. Optionally enable "Show Advanced Settings" to fine-tune individual constraints
+7. Click "Find Chords" to generate voicings
 
 The results will show:
 - Fret positions (x = muted string, 0 = open string, numbers = fret positions)
 - Notes played in each voicing
-- Fitness score (higher is better)
 - Number of fingers required
+- Difficulty rating (Easy/Medium/Hard/Very Hard)
 
 ## Chord Types Supported
 
@@ -104,6 +113,38 @@ Enter notes from lowest to highest string, separated by dashes.
 Example: E-A-D-G-B-E
 
 Available notes: C, Db, D, Eb, E, F, Gb, G, Ab, A, Bb, B
+
+## Playability Constraints
+
+The chord finder uses advanced biomechanical constraints to ensure all suggested voicings are physically playable:
+
+### Constraint Presets
+
+- **Small Hands**: Maximum span of 3 frets, stricter diagonal stretch limits, reduced barre requirements
+- **Normal**: Standard biomechanical limits suitable for most players (max span: 4 frets)
+- **Large Hands**: Relaxed constraints allowing spans up to 5 frets and larger stretches
+- **Advanced Player**: For experienced players with high finger independence and flexibility
+
+### Advanced Constraint Parameters
+
+When "Show Advanced Settings" is enabled, you can fine-tune:
+
+- **Max Fingers**: Maximum number of fingers used (3-4)
+- **Max Absolute Span**: Largest fret distance allowed (3-6 frets)
+- **Max Diagonal Stretch**: Maximum Euclidean distance for diagonal stretches (4.0-7.0)
+- **Max Barre Stretch**: How far other fingers can reach beyond a barre (2-5 frets)
+- **Strict Adaptive Span**: Whether to enforce span limits based on string distance
+- **Max Span (2-string gap)**: Span limit when fingers are separated by 2 strings
+- **Max Span (3+ string gap)**: Span limit when fingers are separated by 3 or more strings
+
+### Biomechanical Validation
+
+Every chord voicing is validated against:
+- Maximum 4 fingers (index, middle, ring, pinky)
+- Adaptive span rules based on string distance
+- Barre detection with gap validation (3+ strings must be adjacent)
+- Lateral stretch limits when using barres
+- Diagonal stretch using Euclidean distance formula
 
 ## Technical Details
 
